@@ -27,14 +27,24 @@ setup_local_bin() {
         mkdir -p /home/coder/.local/bin
         chown -R coder:coder /home/coder/.local
     fi
-    if [ ! -f /home/coder/.local/bin/code ]; then
-        curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-x64/stable" \
-            -o /home/coder/vscode-cli.tar.gz
+
+    redirect_url=$(curl -fsSLI "https://update.code.visualstudio.com/latest/cli-linux-x64/stable" | grep -i '^location:' | awk '{print $2}' | tr -d '\r\n')
+    latest_version=$(echo "$redirect_url" | sed -E 's#.*/stable/([^/]+)/.*#\1#')
+    installed_version=""
+    if [ -f /home/coder/.local/bin/code ]; then
+        installed_version=$(/home/coder/.local/bin/code --version | grep -oE '[a-f0-9]{40}' | head -n1)
+    fi
+
+    if [ ! -f /home/coder/.local/bin/code ] || [ "$installed_version" != "$latest_version" ]; then
+        echo "Updating VS Code CLI: installed=${installed_version:-none}, latest=${latest_version}"
+        curl -fsSL "$redirect_url" -o /home/coder/vscode-cli.tar.gz
         tar -xzf /home/coder/vscode-cli.tar.gz -C /home/coder
         rm /home/coder/vscode-cli.tar.gz
         mv /home/coder/code /home/coder/.local/bin/code
         chmod +x /home/coder/.local/bin/code
         chown coder:coder /home/coder/.local/bin/code
+    else
+        echo "VS Code CLI is up to date (version ${installed_version})."
     fi
 }
 
@@ -108,14 +118,19 @@ setup_docker() {
 
 setup_docker_compose() {
     if [ "${DOCKER_COMPOSE}" = "true" ]; then
-        if [ ! -f /home/coder/.local/bin/docker-compose ]; then
-            echo "Docker Compose plugin not found. Installing to /home/coder/.local/bin..."
-            su coder -c 'mkdir -p /home/coder/.local/bin'
-            su coder -c 'curl -fsSL "https://github.com/docker/compose/releases/download/v2.29.2/docker-compose-linux-x86_64" -o /home/coder/.local/bin/docker-compose'
-            su coder -c 'chmod +x /home/coder/.local/bin/docker-compose'
-            echo "Docker Compose plugin installed."
+        latest_version=$(curl -fsSL "https://api.github.com/repos/docker/compose/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/')
+        installed_version=""
+        if [ -f /home/coder/.local/bin/docker-compose ]; then
+            installed_version=$(/home/coder/.local/bin/docker-compose version --short 2>/dev/null || true)
+        fi
+
+        if [ -z "$installed_version" ] || [ "$installed_version" != "$latest_version" ]; then
+            echo "Updating Docker Compose: installed=${installed_version:-none}, latest=${latest_version}"
+            su coder -c "curl -fsSL \"https://github.com/docker/compose/releases/download/v${latest_version}/docker-compose-linux-x86_64\" -o /home/coder/.local/bin/docker-compose"
+            su coder -c "chmod +x /home/coder/.local/bin/docker-compose"
+            echo "Docker Compose v${latest_version} installed."
         else
-            echo "Docker Compose plugin is already installed."
+            echo "Docker Compose is up to date (version ${installed_version})."
         fi
     else
         echo "Skipping Docker Compose Install."
