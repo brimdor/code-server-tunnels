@@ -109,19 +109,19 @@ setup_docker() {
         else
             echo "Skipping Docker Compose Install."
         fi
-        if [ -n "${docker_host_ip}" ]; then
-            if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
-                if [ ! -d /home/coder/.ssh ]; then
-                    mkdir -p /home/coder/.ssh
-                    chown coder:coder /home/coder/.ssh
-                    chmod 700 /home/coder/.ssh
-                fi
-                ssh-keyscan -H "${docker_host_ip}" >> /home/coder/.ssh/known_hosts 2>/dev/null
-                chown coder:coder /home/coder/.ssh/known_hosts
-                chmod 644 /home/coder/.ssh/known_hosts
-                echo "Added ${docker_host_ip} to known_hosts"
-            fi
-        fi
+        # if [ -n "${docker_host_ip}" ]; then
+        #     if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
+        #         if [ ! -d /home/coder/.ssh ]; then
+        #             mkdir -p /home/coder/.ssh
+        #             chown coder:coder /home/coder/.ssh
+        #             chmod 700 /home/coder/.ssh
+        #         fi
+        #         ssh-keyscan -H "${docker_host_ip}" >> /home/coder/.ssh/known_hosts 2>/dev/null
+        #         chown coder:coder /home/coder/.ssh/known_hosts
+        #         chmod 644 /home/coder/.ssh/known_hosts
+        #         echo "Added ${docker_host_ip} to known_hosts"
+        #     fi
+        # fi
     fi
 }
 
