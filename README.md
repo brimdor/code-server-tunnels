@@ -40,9 +40,9 @@ Set the environment variables in your `values.yaml` or Pod spec under `env:` as 
 | `SSH_PRIVATE`      | No       | The private SSH key to inject into `/home/coder/.ssh/id_rsa`. |
 | `SSH_PUBLIC`       | No       | The public SSH key to inject into `/home/coder/.ssh/id_rsa.pub`. |
 | `DOCKER_HOST`      | No       | Docker host to connect to, e.g. `ssh://user@host`. If set, Docker CLI is installed and the host's SSH key is added to `known_hosts`. |
-| `DOCKER_COMPOSE`   | No       | If `true`, installs Docker Compose plugin. |
-| `GIT_USER_NAME`    | No       | Sets the global Git user name for the `coder` user. |
-| `GIT_USER_EMAIL`   | No       | Sets the global Git user email for the `coder` user. |
+| `DOCKER_COMPOSE`   | No       | If `true`, installs the newer Docker Compose plugin. |
+| `GIT_USER_NAME`    | No       | Sets the global Git user name for the `coder` user. (For Github Repos) |
+| `GIT_USER_EMAIL`   | No       | Sets the global Git user email for the `coder` user. (For Github Repos) |
 
 ---
 

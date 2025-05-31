@@ -94,34 +94,37 @@ setup_docker() {
             usermod -aG docker coder
             echo "Added coder to docker group"
         fi
-        if [ "${DOCKER_COMPOSE}" = "true" ]; then
-            if ! command -v docker-compose &>/dev/null; then
-                su coder -c 'sudo apt-get update'
-                su coder -c 'sudo apt-get install -y ca-certificates curl gnupg lsb-release'
-                su coder -c 'sudo mkdir -p /etc/apt/keyrings'
-                su coder -c 'curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
-                su coder -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null'
-                su coder -c 'sudo apt-get update'
-                su coder -c 'sudo apt-get install -y docker-compose-plugin'
-            else
-                echo "Docker Compose is already installed."
+        if [ -n "${docker_host_ip}" ]; then
+            if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
+                if [ ! -d /home/coder/.ssh ]; then
+                    mkdir -p /home/coder/.ssh
+                    chown coder:coder /home/coder/.ssh
+                    chmod 700 /home/coder/.ssh
+                fi
+                ssh-keyscan -H "${docker_host_ip}" >> /home/coder/.ssh/known_hosts 2>/dev/null
+                chown coder:coder /home/coder/.ssh/known_hosts
+                chmod 644 /home/coder/.ssh/known_hosts
+                echo "Added ${docker_host_ip} to known_hosts"
             fi
-        else
-            echo "Skipping Docker Compose Install."
         fi
-        # if [ -n "${docker_host_ip}" ]; then
-        #     if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
-        #         if [ ! -d /home/coder/.ssh ]; then
-        #             mkdir -p /home/coder/.ssh
-        #             chown coder:coder /home/coder/.ssh
-        #             chmod 700 /home/coder/.ssh
-        #         fi
-        #         ssh-keyscan -H "${docker_host_ip}" >> /home/coder/.ssh/known_hosts 2>/dev/null
-        #         chown coder:coder /home/coder/.ssh/known_hosts
-        #         chmod 644 /home/coder/.ssh/known_hosts
-        #         echo "Added ${docker_host_ip} to known_hosts"
-        #     fi
-        # fi
+    fi
+}
+
+setup_docker_compose() {
+    if [ "${DOCKER_COMPOSE}" = "true" ]; then
+        if ! command -v docker compose &>/dev/null; then
+            su coder -c 'sudo apt-get update'
+            su coder -c 'sudo apt-get install -y ca-certificates curl gnupg lsb-release'
+            su coder -c 'sudo mkdir -p /etc/apt/keyrings'
+            su coder -c 'curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
+            su coder -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null'
+            su coder -c 'sudo apt-get update'
+            su coder -c 'sudo apt-get install -y docker-compose-plugin'
+        else
+            echo "Docker Compose is already installed."
+        fi
+    else
+        echo "Skipping Docker Compose Install."
     fi
 }
 
@@ -167,6 +170,7 @@ setup_local_bin
 #### CUSTOMIZATIONS ####
 setup_ssh
 setup_docker
+setup_docker_compose
 setup_git_config
 ########################
 start_tunnel
