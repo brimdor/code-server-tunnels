@@ -79,20 +79,16 @@ setup_ssh() {
 setup_docker() {
     if [ -n "${DOCKER_HOST}" ]; then
         docker_host_ip=$(echo "${DOCKER_HOST}" | sed -n 's/.*@\(.*\)/\1/p' | sed 's#/.*##')
-        echo "Setting up Docker with host ${docker_host_ip}"
-        if ! command -v docker &>/dev/null; then
-            echo "Docker CLI not found. Installing docker as coder..."
-            su coder -c 'sudo apt-get update'
-            su coder -c 'sudo apt-get install -y docker.io'
+        echo "Setting up Docker CLI for remote host ${docker_host_ip}"
+        if [ ! -f /home/coder/.local/bin/docker ]; then
+            echo "Docker CLI not found. Installing Docker CLI for coder..."
+            su coder -c 'mkdir -p /home/coder/.local/bin'
+            su coder -c 'curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-25.0.5.tgz -o /home/coder/docker-cli.tgz'
+            su coder -c 'tar -xzf /home/coder/docker-cli.tgz -C /home/coder/.local/bin --strip-components=1 docker/docker'
+            su coder -c 'rm /home/coder/docker-cli.tgz'
+            su coder -c 'chmod +x /home/coder/.local/bin/docker'
         else
             echo "Docker CLI is available."
-        fi
-        if ! getent group docker >/dev/null; then
-            groupadd docker
-        fi
-        if ! id -nG coder | grep -qw docker; then
-            usermod -aG docker coder
-            echo "Added coder to docker group"
         fi
         if [ -n "${docker_host_ip}" ]; then
             if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
@@ -112,16 +108,14 @@ setup_docker() {
 
 setup_docker_compose() {
     if [ "${DOCKER_COMPOSE}" = "true" ]; then
-        if ! command -v docker compose &>/dev/null; then
-            su coder -c 'sudo apt-get update'
-            su coder -c 'sudo apt-get install -y ca-certificates curl gnupg lsb-release'
-            su coder -c 'sudo mkdir -p /etc/apt/keyrings'
-            su coder -c 'curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
-            su coder -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null'
-            su coder -c 'sudo apt-get update'
-            su coder -c 'sudo apt-get install -y docker-compose-plugin'
+        if [ ! -f /home/coder/.local/bin/docker-compose ]; then
+            echo "Docker Compose plugin not found. Installing to /home/coder/.local/bin..."
+            su coder -c 'mkdir -p /home/coder/.local/bin'
+            su coder -c 'curl -fsSL "https://github.com/docker/compose/releases/download/v2.29.2/docker-compose-linux-x86_64" -o /home/coder/.local/bin/docker-compose'
+            su coder -c 'chmod +x /home/coder/.local/bin/docker-compose'
+            echo "Docker Compose plugin installed."
         else
-            echo "Docker Compose is already installed."
+            echo "Docker Compose plugin is already installed."
         fi
     else
         echo "Skipping Docker Compose Install."
