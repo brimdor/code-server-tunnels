@@ -27,7 +27,9 @@ setup_local_bin() {
         mkdir -p /home/coder/.local/bin
         chown -R coder:coder /home/coder/.local
     fi
+}
 
+setup_vscode_cli() {
     redirect_url=$(curl -fsSLI "https://update.code.visualstudio.com/latest/cli-linux-x64/stable" | grep -i '^location:' | awk '{print $2}' | tr -d '\r\n')
     latest_version=$(echo "$redirect_url" | sed -E 's#.*/stable/([^/]+)/.*#\1#')
     installed_version=""
@@ -90,16 +92,34 @@ setup_docker() {
     if [ -n "${DOCKER_HOST}" ]; then
         docker_host_ip=$(echo "${DOCKER_HOST}" | sed -n 's/.*@\(.*\)/\1/p' | sed 's#/.*##')
         echo "Setting up Docker CLI for remote host ${docker_host_ip}"
-        if [ ! -f /home/coder/.local/bin/docker ]; then
-            echo "Docker CLI not found. Installing Docker CLI for coder..."
-            su coder -c 'mkdir -p /home/coder/.local/bin'
-            su coder -c 'curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-25.0.5.tgz -o /home/coder/docker-cli.tgz'
-            su coder -c 'tar -xzf /home/coder/docker-cli.tgz -C /home/coder/.local/bin --strip-components=1 docker/docker'
-            su coder -c 'rm /home/coder/docker-cli.tgz'
-            su coder -c 'chmod +x /home/coder/.local/bin/docker'
-        else
-            echo "Docker CLI is available."
+
+        # Get the latest docker-<version>.tgz by date (last entry in the list)
+        latest_version=$(curl -fsSL https://download.docker.com/linux/static/stable/x86_64/ \
+            | grep -oP 'docker-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tgz)' \
+            | sort -V | tail -n1)
+
+        if [ -z "$latest_version" ]; then
+            echo "Failed to fetch latest Docker CLI version."
+            return 1
         fi
+
+        installed_version=""
+        if [ -f /home/coder/.local/bin/docker ]; then
+            installed_version=$(/home/coder/.local/bin/docker version --format '{{.Client.Version}}' 2>/dev/null || true)
+        fi
+
+        if [ -z "$installed_version" ] || [ "$installed_version" != "$latest_version" ]; then
+            echo "Updating Docker CLI: installed=${installed_version:-none}, latest=${latest_version}"
+            su coder -c 'mkdir -p /home/coder/.local/bin'
+            su coder -c "curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-${latest_version}.tgz -o /home/coder/docker-cli.tgz"
+            su coder -c "tar -xzf /home/coder/docker-cli.tgz -C /home/coder/.local/bin --strip-components=1 docker/docker"
+            su coder -c "rm /home/coder/docker-cli.tgz"
+            su coder -c "chmod +x /home/coder/.local/bin/docker"
+            echo "Docker CLI v${latest_version} installed."
+        else
+            echo "Docker CLI is already installed and up to date (version ${installed_version})."
+        fi
+
         if [ -n "${docker_host_ip}" ]; then
             if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
                 if [ ! -d /home/coder/.ssh ]; then
@@ -176,6 +196,7 @@ start_tunnel() {
 setup_permissions
 setup_zshrc
 setup_local_bin
+setup_vscode_cli
 #### CUSTOMIZATIONS ####
 setup_ssh
 setup_docker
