@@ -157,6 +157,32 @@ setup_docker_compose() {
     fi
 }
 
+setup_nodejs() {
+    if [ "${NODEJS}" = "true" ]; then
+        NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/latest/ | grep -oP 'node-v\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+        NODE_DIST="node-v${NODE_VERSION}-linux-x64"
+        NODE_TARBALL="https://nodejs.org/dist/latest/${NODE_DIST}.tar.xz"
+        INSTALL_DIR="/home/coder/.local/nodejs"
+        BIN_DIR="/home/coder/.local/bin"
+
+        if [ ! -x "${BIN_DIR}/node" ] || [ "$(${BIN_DIR}/node -v 2>/dev/null)" != "v${NODE_VERSION}" ]; then
+            echo "Installing Node.js v${NODE_VERSION} to ${INSTALL_DIR}..."
+            su coder -c "mkdir -p ${INSTALL_DIR} ${BIN_DIR}"
+            curl -fsSL "${NODE_TARBALL}" -o /tmp/node.tar.xz
+            su coder -c "tar -xf /tmp/node.tar.xz -C ${INSTALL_DIR} --strip-components=1"
+            rm /tmp/node.tar.xz
+            su coder -c "ln -sf ${INSTALL_DIR}/bin/node ${BIN_DIR}/node"
+            su coder -c "ln -sf ${INSTALL_DIR}/bin/npm ${BIN_DIR}/npm"
+            su coder -c "ln -sf ${INSTALL_DIR}/bin/npx ${BIN_DIR}/npx"
+            echo "Node.js and npm installed."
+        else
+            echo "Node.js v${NODE_VERSION} already installed."
+        fi
+    else
+        echo "Skipping Node.js install."
+    fi
+}
+
 setup_git_config() {
     if [ -n "${GIT_USER_NAME}" ]; then
         su coder -c "git config --global user.name '${GIT_USER_NAME}'"
@@ -201,6 +227,7 @@ setup_vscode_cli
 setup_ssh
 setup_docker
 setup_docker_compose
+setup_nodejs
 setup_git_config
 ########################
 start_tunnel
