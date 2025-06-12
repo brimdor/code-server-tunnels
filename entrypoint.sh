@@ -50,6 +50,24 @@ setup_vscode_cli() {
     fi
 }
 
+setup_homebrew() {
+    HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+    HOMEBREW_BIN="${HOMEBREW_PREFIX}/bin/brew"
+    
+    if ! grep -qF "eval \"$(${HOMEBREW_PREFIX}/bin/brew shellenv)\"" /home/coder/.zshrc; then
+        echo "Adding Homebrew to .zshrc..."
+        echo "eval \"$(${HOMEBREW_PREFIX}/bin/brew shellenv)\"" >> /home/coder/.zshrc
+    fi
+
+    if [ -x "$HOMEBREW_BIN" ]; then
+        echo "Updating Homebrew..."
+        su coder -c "$HOMEBREW_BIN update"
+    else
+        echo "Homebrew not found at $HOMEBREW_BIN."
+    fi
+    echo "Homebrew configuration and version checks complete."
+}
+
 ########## CUSTOMIZATIONS ##########
 
 setup_ssh() {
@@ -93,7 +111,6 @@ setup_docker() {
         docker_host_ip=$(echo "${DOCKER_HOST}" | sed -n 's/.*@\(.*\)/\1/p' | sed 's#/.*##')
         echo "Setting up Docker CLI for remote host ${docker_host_ip}"
 
-        # Get the latest docker-<version>.tgz by date (last entry in the list)
         latest_version=$(curl -fsSL https://download.docker.com/linux/static/stable/x86_64/ \
             | grep -oP 'docker-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tgz)' \
             | sort -V | tail -n1)
@@ -194,7 +211,6 @@ setup_git_config() {
 
 ####################################
 
-
 start_tunnel() {
     local TUNNEL_NAME="${TUNNEL_NAME:-vscode-tunnel}"
     local PROVIDER="${PROVIDER:-github}"
@@ -223,6 +239,7 @@ setup_permissions
 setup_zshrc
 setup_local_bin
 setup_vscode_cli
+setup_homebrew
 #### CUSTOMIZATIONS ####
 setup_ssh
 setup_docker
