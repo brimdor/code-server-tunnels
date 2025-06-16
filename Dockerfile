@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
 RUN useradd -m -s /bin/zsh coder \
   && echo "coder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
+USER coder
+
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
     && chown -R coder:coder /home/linuxbrew/.linuxbrew \
     && echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/coder/.zshrc
