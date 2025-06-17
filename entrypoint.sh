@@ -1,21 +1,9 @@
 #!/bin/bash
 set -e
 
-setup_permissions() {
-    chmod g+w /home/coder
-    chgrp -R 0 /home/coder
-    chmod -R g=u /home/coder
-    if [ ! -d /home/coder ]; then
-        mkdir -p /home/coder
-        chown coder:coder /home/coder
-    fi
-    chown -R coder:coder /home/coder
-}
-
 setup_zshrc() {
     if [ ! -f /home/coder/.zshrc ]; then
         touch /home/coder/.zshrc
-        chown coder:coder /home/coder/.zshrc
     fi
     if ! grep -qxF 'export PATH="/home/coder/.local/bin:${PATH}"' /home/coder/.zshrc; then
         echo 'export PATH="/home/coder/.local/bin:${PATH}"' >> /home/coder/.zshrc
@@ -25,7 +13,6 @@ setup_zshrc() {
 setup_local_bin() {
     if [ ! -d /home/coder/.local/bin ]; then
         mkdir -p /home/coder/.local/bin
-        chown -R coder:coder /home/coder/.local
     fi
 }
 
@@ -44,43 +31,19 @@ setup_vscode_cli() {
         rm /home/coder/vscode-cli.tar.gz
         mv /home/coder/code /home/coder/.local/bin/code
         chmod +x /home/coder/.local/bin/code
-        chown coder:coder /home/coder/.local/bin/code
     else
         echo "VS Code CLI is up to date (version ${installed_version})."
     fi
 }
 
-setup_homebrew() {
-    HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
-    HOMEBREW_BIN="${HOMEBREW_PREFIX}/bin/brew"
-    
-    if ! grep -qF "eval \"$(${HOMEBREW_PREFIX}/bin/brew shellenv)\"" /home/coder/.zshrc; then
-        echo "Adding Homebrew to .zshrc..."
-        echo "eval \"$(${HOMEBREW_PREFIX}/bin/brew shellenv)\"" >> /home/coder/.zshrc
-    fi
-
-    if [ -x "$HOMEBREW_BIN" ]; then
-        echo "Updating Homebrew..."
-        su coder -c "$HOMEBREW_BIN update"
-    else
-        echo "Homebrew not found at $HOMEBREW_BIN."
-    fi
-    echo "Homebrew configuration and version checks complete."
-}
-
-########## CUSTOMIZATIONS ##########
-
 setup_ssh() {
     if [ "${PRIVATE_KEY}" = "true" ]; then
         if [ ! -d /home/coder/.ssh ]; then
             mkdir -p /home/coder/.ssh
-            chown coder:coder /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
         if [ ! -f /home/coder/.ssh/id_rsa ]; then
-            su coder -c "ssh-keygen -t rsa -b 4096 -f /home/coder/.ssh/id_rsa -N ''"
-            chown coder:coder /home/coder/.ssh/id_rsa
-            chown coder:coder /home/coder/.ssh/id_rsa.pub
+            ssh-keygen -t rsa -b 4096 -f /home/coder/.ssh/id_rsa -N ''
             chmod 600 /home/coder/.ssh/id_rsa
             chmod 644 /home/coder/.ssh/id_rsa.pub
             echo "********* SSH Key Generated Successfully **********"
@@ -92,124 +55,26 @@ setup_ssh() {
     if [ -n "${SSH_PRIVATE}" ] && [ -n "${SSH_PUBLIC}" ]; then
         if [ ! -d /home/coder/.ssh ]; then
             mkdir -p /home/coder/.ssh
-            chown coder:coder /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
         echo "${SSH_PRIVATE}" > /home/coder/.ssh/id_rsa
         echo "${SSH_PUBLIC}" > /home/coder/.ssh/id_rsa.pub
-        chown coder:coder /home/coder/.ssh/id_rsa /home/coder/.ssh/id_rsa.pub
         chmod 600 /home/coder/.ssh/id_rsa
         chmod 644 /home/coder/.ssh/id_rsa.pub
-        echo "********* SSH Key Injected Successfully **********"
+        echo "********* SSH Key Injected Successfully *********"
         cat /home/coder/.ssh/id_rsa.pub
         echo "*************************************************"
     fi
 }
 
-setup_docker() {
-    if [ -n "${DOCKER_HOST}" ]; then
-        docker_host_ip=$(echo "${DOCKER_HOST}" | sed -n 's/.*@\(.*\)/\1/p' | sed 's#/.*##')
-        echo "Setting up Docker CLI for remote host ${docker_host_ip}"
-
-        latest_version=$(curl -fsSL https://download.docker.com/linux/static/stable/x86_64/ \
-            | grep -oP 'docker-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tgz)' \
-            | sort -V | tail -n1)
-
-        if [ -z "$latest_version" ]; then
-            echo "Failed to fetch latest Docker CLI version."
-            return 1
-        fi
-
-        installed_version=""
-        if [ -f /home/coder/.local/bin/docker ]; then
-            installed_version=$(/home/coder/.local/bin/docker version --format '{{.Client.Version}}' 2>/dev/null || true)
-        fi
-
-        if [ -z "$installed_version" ] || [ "$installed_version" != "$latest_version" ]; then
-            echo "Updating Docker CLI: installed=${installed_version:-none}, latest=${latest_version}"
-            su coder -c 'mkdir -p /home/coder/.local/bin'
-            su coder -c "curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-${latest_version}.tgz -o /home/coder/docker-cli.tgz"
-            su coder -c "tar -xzf /home/coder/docker-cli.tgz -C /home/coder/.local/bin --strip-components=1 docker/docker"
-            su coder -c "rm /home/coder/docker-cli.tgz"
-            su coder -c "chmod +x /home/coder/.local/bin/docker"
-            echo "Docker CLI v${latest_version} installed."
-        else
-            echo "Docker CLI is already installed and up to date (version ${installed_version})."
-        fi
-
-        if [ -n "${docker_host_ip}" ]; then
-            if ! grep -q "${docker_host_ip}" /home/coder/.ssh/known_hosts 2>/dev/null; then
-                if [ ! -d /home/coder/.ssh ]; then
-                    mkdir -p /home/coder/.ssh
-                    chown coder:coder /home/coder/.ssh
-                    chmod 700 /home/coder/.ssh
-                fi
-                ssh-keyscan -H "${docker_host_ip}" >> /home/coder/.ssh/known_hosts 2>/dev/null
-                chown coder:coder /home/coder/.ssh/known_hosts
-                chmod 644 /home/coder/.ssh/known_hosts
-                echo "Added ${docker_host_ip} to known_hosts"
-            fi
-        fi
-    fi
-}
-
-setup_docker_compose() {
-    if [ "${DOCKER_COMPOSE}" = "true" ]; then
-        latest_version=$(curl -fsSL "https://api.github.com/repos/docker/compose/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/')
-        installed_version=""
-        if [ -f /home/coder/.local/bin/docker-compose ]; then
-            installed_version=$(/home/coder/.local/bin/docker-compose version --short 2>/dev/null || true)
-        fi
-
-        if [ -z "$installed_version" ] || [ "$installed_version" != "$latest_version" ]; then
-            echo "Updating Docker Compose: installed=${installed_version:-none}, latest=${latest_version}"
-            su coder -c "curl -fsSL \"https://github.com/docker/compose/releases/download/v${latest_version}/docker-compose-linux-x86_64\" -o /home/coder/.local/bin/docker-compose"
-            su coder -c "chmod +x /home/coder/.local/bin/docker-compose"
-            echo "Docker Compose v${latest_version} installed."
-        else
-            echo "Docker Compose is up to date (version ${installed_version})."
-        fi
-    else
-        echo "Skipping Docker Compose Install."
-    fi
-}
-
-setup_nodejs() {
-    if [ "${NODEJS}" = "true" ]; then
-        NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/latest/ | grep -oP 'node-v\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
-        NODE_DIST="node-v${NODE_VERSION}-linux-x64"
-        NODE_TARBALL="https://nodejs.org/dist/latest/${NODE_DIST}.tar.xz"
-        INSTALL_DIR="/home/coder/.local/nodejs"
-        BIN_DIR="/home/coder/.local/bin"
-
-        if [ ! -x "${BIN_DIR}/node" ] || [ "$(${BIN_DIR}/node -v 2>/dev/null)" != "v${NODE_VERSION}" ]; then
-            echo "Installing Node.js v${NODE_VERSION} to ${INSTALL_DIR}..."
-            su coder -c "mkdir -p ${INSTALL_DIR} ${BIN_DIR}"
-            curl -fsSL "${NODE_TARBALL}" -o /tmp/node.tar.xz
-            su coder -c "tar -xf /tmp/node.tar.xz -C ${INSTALL_DIR} --strip-components=1"
-            rm /tmp/node.tar.xz
-            su coder -c "ln -sf ${INSTALL_DIR}/bin/node ${BIN_DIR}/node"
-            su coder -c "ln -sf ${INSTALL_DIR}/bin/npm ${BIN_DIR}/npm"
-            su coder -c "ln -sf ${INSTALL_DIR}/bin/npx ${BIN_DIR}/npx"
-            echo "Node.js and npm installed."
-        else
-            echo "Node.js v${NODE_VERSION} already installed."
-        fi
-    else
-        echo "Skipping Node.js install."
-    fi
-}
-
 setup_git_config() {
-    if [ -n "${GIT_USER_NAME}" ]; then
-        su coder -c "git config --global user.name '${GIT_USER_NAME}'"
+    if [ -n "${GITHUB_USERNAME}" ]; then
+        git config --global user.name "${GITHUB_USERNAME}"
     fi
-    if [ -n "${GIT_USER_EMAIL}" ]; then
-        su coder -c "git config --global user.email '${GIT_USER_EMAIL}'"
+    if [ -n "${GITHUB_EMAIL}" ]; then
+        git config --global user.email "${GITHUB_EMAIL}"
     fi
 }
-
-####################################
 
 start_tunnel() {
     local TUNNEL_NAME="${TUNNEL_NAME:-vscode-tunnel}"
@@ -225,26 +90,18 @@ start_tunnel() {
     fi
 
     if [ ! -f /home/coder/.vscode/cli/token.json ] || [ ! -f /home/coder/.vscode/cli/code_tunnel.json ]; then
-        su coder -c "export HOME=/home/coder; /home/coder/.local/bin/code tunnel user login --provider '${PROVIDER}'"
-        su coder -c "touch /home/coder/check && echo ${TUNNEL_NAME} > /home/coder/check"
-        chown coder:coder /home/coder/check
+        /home/coder/.local/bin/code tunnel user login --provider "${PROVIDER}"
+        touch /home/coder/check && echo ${TUNNEL_NAME} > /home/coder/check
     else
         echo "Tunnel already exists."
     fi
 
-    su coder -c "export HOME=/home/coder; /home/coder/.local/bin/code tunnel --accept-server-license-terms --name '${TUNNEL_NAME}'"
+    /home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}"
 }
 
-setup_permissions
 setup_zshrc
 setup_local_bin
 setup_vscode_cli
-setup_homebrew
-#### CUSTOMIZATIONS ####
 setup_ssh
-setup_docker
-setup_docker_compose
-setup_nodejs
 setup_git_config
-########################
 start_tunnel
