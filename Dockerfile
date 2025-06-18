@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     sudo \
     zsh \
     openssh-client \
+    apt-utils \
   && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/zsh coder \

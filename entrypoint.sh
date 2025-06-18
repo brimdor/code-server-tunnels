@@ -76,6 +76,16 @@ setup_git_config() {
     fi
 }
 
+setup_chezmoi() {
+    if [ -z "${CHEZMOI_REPO}" ] || [ -z "${CHEZMOI_BRANCH}" ]; then
+        echo "CHEZMOI_REPO and CHEZMOI_BRANCH must be set for chezmoi setup."
+        return 1
+    fi
+    if [ -n "${CHEZMOI_REPO}" ]; then
+        sh -c "$(curl -fsLS get.chezmoi.io)" -- init --branch $CHEZMOI_BRANCH --apply $CHEZMOI_REPO
+    fi
+}
+
 start_tunnel() {
     local TUNNEL_NAME="${TUNNEL_NAME:-vscode-tunnel}"
     local PROVIDER="${PROVIDER:-github}"
@@ -104,4 +114,5 @@ setup_local_bin
 setup_vscode_cli
 setup_ssh
 setup_git_config
+setup_chezmoi
 start_tunnel
