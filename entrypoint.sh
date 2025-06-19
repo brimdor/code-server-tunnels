@@ -84,7 +84,7 @@ setup_chezmoi() {
         return 1
     fi
     if [ -n "${CHEZMOI_REPO}" ]; then
-        sh -c "$(curl -fsLS get.chezmoi.io)" -b /home/coder/.local/bin
+        sh -c "$(curl -fsLS get.chezmoi.io)"
         chezmoi init --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
     fi
 }
