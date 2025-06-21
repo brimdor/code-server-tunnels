@@ -109,7 +109,7 @@ setup_chezmoi() {
         echo "*** Setting up Chezmoi with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
         sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /home/coder/.local/bin
         echo "*** Chezmoi Successfully Installed."
-        chezmoi init --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
+        chezmoi init --verbose --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO" | grep -E 'error|warning'
         echo "*** Chezmoi initialized with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
     fi
 }
