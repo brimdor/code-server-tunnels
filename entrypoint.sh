@@ -39,33 +39,55 @@ setup_vscode_cli() {
 }
 
 setup_ssh() {
-    if [ "${PRIVATE_KEY}" = "true" ]; then
+    if [ "${PRIVATE_RSA}" = "true" ] || [ "${PRIVATE_ED}" = "true" ]; then
         if [ ! -d /home/coder/.ssh ]; then
             mkdir -p /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
-        if [ ! -f /home/coder/.ssh/id_rsa ]; then
-            ssh-keygen -t rsa -b 4096 -f /home/coder/.ssh/id_rsa -N ''
-            chmod 600 /home/coder/.ssh/id_rsa
-            chmod 644 /home/coder/.ssh/id_rsa.pub
-            echo "********* SSH Key Generated Successfully **********"
-            cat /home/coder/.ssh/id_rsa.pub
-            echo "***************************************************"
+        if [ "${PRIVATE_RSA}" = "true" ]; then
+            if [ ! -f /home/coder/.ssh/id_rsa ]; then
+                ssh-keygen -t rsa -b 4096 -f /home/coder/.ssh/id_rsa -N ""
+                chmod 600 /home/coder/.ssh/id_rsa
+                chmod 644 /home/coder/.ssh/id_rsa.pub
+                echo "********* Generated new RSA SSH keypair *********"
+                echo "Public Key: $(cat /home/coder/.ssh/id_rsa.pub)"
+                echo "*************************************************"
+                echo ""
+            fi
         fi
+        if [ "${PRIVATE_ED}" = "true" ]; then
+            if [ ! -f /home/coder/.ssh/id_ed25519 ]; then
+                ssh-keygen -t ed25519 -f /home/coder/.ssh/id_ed25519 -N ""
+                chmod 600 /home/coder/.ssh/id_ed25519
+                chmod 644 /home/coder/.ssh/id_ed25519.pub
+                echo "********* Generated new ED25519 SSH keypair *********"
+                echo "Public Key: $(cat /home/coder/.ssh/id_ed25519.pub)"
+                echo "*****************************************************"
+                echo ""
+            fi
+        fi
+    else
+        echo "No SSH key generation requested. Skipping SSH key setup."
     fi
-
+    
     if [ -n "${SSH_PRIVATE}" ] && [ -n "${SSH_PUBLIC}" ]; then
-        if [ ! -d /home/coder/.ssh ]; then
+        if [ -f /home/coder/.ssh/public_key ] && [ "$(cat /home/coder/.ssh/public_key)" = "${SSH_PUBLIC}" ]; then
+            echo "SSH public key already exists and matches the provided value. Skipping injection."
+            return
+        elif [ ! -d /home/coder/.ssh ]; then
+            echo "********* Creating .ssh directory *********"
             mkdir -p /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
-        echo "${SSH_PRIVATE}" > /home/coder/.ssh/id_rsa
-        echo "${SSH_PUBLIC}" > /home/coder/.ssh/id_rsa.pub
-        chmod 600 /home/coder/.ssh/id_rsa
-        chmod 644 /home/coder/.ssh/id_rsa.pub
+
+        echo "${SSH_PRIVATE}" > /home/coder/.ssh/private_key
+        echo "${SSH_PUBLIC}" > /home/coder/.ssh/public_key
+        chmod 600 /home/coder/.ssh/private_key
+        chmod 644 /home/coder/.ssh/public_key
         echo "********* SSH Key Injected Successfully *********"
-        cat /home/coder/.ssh/id_rsa.pub
+        cat /home/coder/.ssh/public_key
         echo "*************************************************"
+        return
     fi
 }
 
