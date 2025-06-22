@@ -63,20 +63,29 @@ RUN apt-get update -qq \
     procps \
     python3 \
     python3-attr \
+    python3-cryptography \
     python3-docker \
     python3-dockerpty \
     python3-docopt \
     python3-dotenv \
+    python3-jinja2 \
     python3-json-pointer \
     python3-jsonschema \
+    python3-markupsafe \
+    python3-packaging \
     python3-pip \
     python3-protobuf \
     python3-pyrsistent \
+    python3-requests \
+    python3-resolvelib \
     python3-rfc3987 \
+    python3-setuptools \
     python3-texttable \
     python3-uritemplate \
+    python3-venv \
     python3-webcolors \
     python3-websocket \
+    python3-yaml \
     runc \
     sensible-utils \
     software-properties-common \

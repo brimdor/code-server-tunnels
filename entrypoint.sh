@@ -121,8 +121,12 @@ setup_chezmoi() {
     fi
     if [ -n "${CHEZMOI_REPO}" ]; then
         echo "*** Setting up Chezmoi with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
-        sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /home/coder/.local/bin
-        echo "*** Chezmoi Successfully Installed."
+        if ! command -v chezmoi >/dev/null 2>&1; then
+            sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /home/coder/.local/bin
+            echo "*** Chezmoi Successfully Installed."
+        else
+            echo "*** Chezmoi already installed. Skipping installation."
+        fi
         chezmoi init --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
         echo "*** Chezmoi initialized with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
     fi
