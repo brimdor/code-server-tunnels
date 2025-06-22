@@ -23,7 +23,7 @@ if [ $? -ne 0 ]; then
 fi
 echo "Image: $IMAGE"
 echo "Building and pushing image..."
-docker build --no-cache -f Dockerfile -t "$IMAGE" .
+docker build -f Dockerfile -t "$IMAGE" .
 docker push "$IMAGE"
 
 echo "Script finished."

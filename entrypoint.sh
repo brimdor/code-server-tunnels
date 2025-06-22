@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+export PATH="/home/coder/.local/bin:${PATH}"
+
 setup_zshrc() {
     if [ ! -f /home/coder/.zshrc ]; then
         touch /home/coder/.zshrc
@@ -37,32 +39,62 @@ setup_vscode_cli() {
 }
 
 setup_ssh() {
-    if [ "${PRIVATE_KEY}" = "true" ]; then
+    if [ "${PRIVATE_RSA}" = "true" ] || [ "${PRIVATE_ED}" = "true" ]; then
         if [ ! -d /home/coder/.ssh ]; then
             mkdir -p /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
-        if [ ! -f /home/coder/.ssh/id_rsa ]; then
-            ssh-keygen -t rsa -b 4096 -f /home/coder/.ssh/id_rsa -N ''
-            chmod 600 /home/coder/.ssh/id_rsa
-            chmod 644 /home/coder/.ssh/id_rsa.pub
-            echo "********* SSH Key Generated Successfully **********"
-            cat /home/coder/.ssh/id_rsa.pub
-            echo "***************************************************"
+        if [ "${PRIVATE_RSA}" = "true" ]; then
+            if [ ! -f /home/coder/.ssh/id_rsa ]; then
+                ssh-keygen -t rsa -b 4096 -f /home/coder/.ssh/id_rsa -N ""
+                chmod 600 /home/coder/.ssh/id_rsa
+                chmod 644 /home/coder/.ssh/id_rsa.pub
+                echo "********* Generated new RSA SSH keypair *********"
+                echo "Public Key: $(cat /home/coder/.ssh/id_rsa.pub)"
+                echo "*************************************************"
+                echo ""
+            fi
         fi
+        if [ "${PRIVATE_ED}" = "true" ]; then
+            if [ ! -f /home/coder/.ssh/id_ed25519 ]; then
+                ssh-keygen -t ed25519 -f /home/coder/.ssh/id_ed25519 -N ""
+                chmod 600 /home/coder/.ssh/id_ed25519
+                chmod 644 /home/coder/.ssh/id_ed25519.pub
+                echo "********* Generated new ED25519 SSH keypair *********"
+                echo "Public Key: $(cat /home/coder/.ssh/id_ed25519.pub)"
+                echo "*****************************************************"
+                echo ""
+            fi
+        fi
+    else
+        echo "No SSH key generation requested. Skipping SSH key setup."
     fi
 
     if [ -n "${SSH_PRIVATE}" ] && [ -n "${SSH_PUBLIC}" ]; then
         if [ ! -d /home/coder/.ssh ]; then
+            echo "********* Creating .ssh directory *********"
             mkdir -p /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
-        echo "${SSH_PRIVATE}" > /home/coder/.ssh/id_rsa
-        echo "${SSH_PUBLIC}" > /home/coder/.ssh/id_rsa.pub
-        chmod 600 /home/coder/.ssh/id_rsa
-        chmod 644 /home/coder/.ssh/id_rsa.pub
+        echo "${SSH_PRIVATE}" > /home/coder/.ssh/id_private
+        echo "${SSH_PUBLIC}" > /home/coder/.ssh/id_public
+        chmod 600 /home/coder/.ssh/id_private
+        chmod 644 /home/coder/.ssh/id_public
+        if [ -n "${DOCKER_HOST}" ]; then
+            host=$(echo "${DOCKER_HOST}" | sed -E 's#ssh://([^@]+@)?([^:/]+).*#\2#')
+            if [ -n "${host}" ] && ! grep -qE "^${host}[ ,]" /home/coder/.ssh/known_hosts 2>/dev/null; then
+                ssh-keyscan -H "${host}" >> /home/coder/.ssh/known_hosts 2>/dev/null || true
+                chmod 644 /home/coder/.ssh/known_hosts
+                echo "Added ${host} to known_hosts."
+            fi
+        fi
+        # Always start ssh-agent and add the key on every boot if SSH_PRIVATE and SSH_PUBLIC are set
+        eval "$(ssh-agent -s)"
+        ssh-add -D >/dev/null 2>&1 || true
+        ssh-add /home/coder/.ssh/id_private
+        echo "********* id_private key added to SSH agent *********"
         echo "********* SSH Key Injected Successfully *********"
-        cat /home/coder/.ssh/id_rsa.pub
+        cat /home/coder/.ssh/id_public
         echo "*************************************************"
     fi
 }
@@ -73,6 +105,37 @@ setup_git_config() {
     fi
     if [ -n "${GITHUB_EMAIL}" ]; then
         git config --global user.email "${GITHUB_EMAIL}"
+    fi
+}
+
+setup_chezmoi() {
+    if [ -z "${CHEZMOI_REPO}" ] || [ -z "${CHEZMOI_BRANCH}" ]; then
+        echo "CHEZMOI_REPO and CHEZMOI_BRANCH must be set for chezmoi setup."
+        return 1
+    fi
+    if [ -n "${CHEZMOI_REPO}" ]; then
+        echo "*** Setting up Chezmoi with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
+        if ! command -v chezmoi >/dev/null 2>&1; then
+            echo "*** Chezmoi Successfully Installed."
+        else
+            echo "*** Chezmoi already installed. Skipping installation."
+        fi
+        if [ -d "$HOME/.local/share/chezmoi" ]; then
+            cd "$HOME/.local/share/chezmoi"
+            git remote update >/dev/null 2>&1
+            LOCAL=$(git rev-parse @)
+            REMOTE=$(git rev-parse @{u})
+            if [ "$LOCAL" != "$REMOTE" ]; then
+                echo "*** Remote changes detected, running chezmoi update."
+                chezmoi update --force --no-tty
+            else
+                echo "*** No remote changes detected, skipping chezmoi update."
+            fi
+            cd - >/dev/null
+        else
+            chezmoi init --no-tty --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
+        fi
+        echo "*** Chezmoi initialized with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
     fi
 }
 
@@ -104,4 +167,5 @@ setup_local_bin
 setup_vscode_cli
 setup_ssh
 setup_git_config
+setup_chezmoi
 start_tunnel
