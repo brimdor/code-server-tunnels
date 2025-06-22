@@ -69,17 +69,13 @@ setup_ssh() {
     else
         echo "No SSH key generation requested. Skipping SSH key setup."
     fi
-    
+
     if [ -n "${SSH_PRIVATE}" ] && [ -n "${SSH_PUBLIC}" ]; then
-        if [ -f /home/coder/.ssh/id_public ] && [ "$(cat /home/coder/.ssh/id_public)" = "${SSH_PUBLIC}" ]; then
-            echo "SSH public key already exists and matches the provided value. Skipping injection."
-            return
-        elif [ ! -d /home/coder/.ssh ]; then
+        if [ ! -d /home/coder/.ssh ]; then
             echo "********* Creating .ssh directory *********"
             mkdir -p /home/coder/.ssh
             chmod 700 /home/coder/.ssh
         fi
-
         echo "${SSH_PRIVATE}" > /home/coder/.ssh/id_private
         echo "${SSH_PUBLIC}" > /home/coder/.ssh/id_public
         chmod 600 /home/coder/.ssh/id_private
@@ -92,16 +88,14 @@ setup_ssh() {
                 echo "Added ${host} to known_hosts."
             fi
         fi
-        if [ -f /home/coder/.ssh/id_private ]; then
-            eval "$(ssh-agent -s)"
-            ssh-add -D >/dev/null 2>&1 || true
-            ssh-add /home/coder/.ssh/id_private
-            echo "********* id_private key added to SSH agent *********"
-        fi
+        # Always start ssh-agent and add the key on every boot if SSH_PRIVATE and SSH_PUBLIC are set
+        eval "$(ssh-agent -s)"
+        ssh-add -D >/dev/null 2>&1 || true
+        ssh-add /home/coder/.ssh/id_private
+        echo "********* id_private key added to SSH agent *********"
         echo "********* SSH Key Injected Successfully *********"
         cat /home/coder/.ssh/id_public
         echo "*************************************************"
-        return
     fi
 }
 
