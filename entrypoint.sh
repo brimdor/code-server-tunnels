@@ -71,7 +71,7 @@ setup_ssh() {
     fi
     
     if [ -n "${SSH_PRIVATE}" ] && [ -n "${SSH_PUBLIC}" ]; then
-        if [ -f /home/coder/.ssh/public_key ] && [ "$(cat /home/coder/.ssh/public_key)" = "${SSH_PUBLIC}" ]; then
+        if [ -f /home/coder/.ssh/id_public ] && [ "$(cat /home/coder/.ssh/id_public)" = "${SSH_PUBLIC}" ]; then
             echo "SSH public key already exists and matches the provided value. Skipping injection."
             return
         elif [ ! -d /home/coder/.ssh ]; then
@@ -80,12 +80,26 @@ setup_ssh() {
             chmod 700 /home/coder/.ssh
         fi
 
-        echo "${SSH_PRIVATE}" > /home/coder/.ssh/private_key
-        echo "${SSH_PUBLIC}" > /home/coder/.ssh/public_key
-        chmod 600 /home/coder/.ssh/private_key
-        chmod 644 /home/coder/.ssh/public_key
+        echo "${SSH_PRIVATE}" > /home/coder/.ssh/id_private
+        echo "${SSH_PUBLIC}" > /home/coder/.ssh/id_public
+        chmod 600 /home/coder/.ssh/id_private
+        chmod 644 /home/coder/.ssh/id_public
+        if [ -n "${DOCKER_HOST}" ]; then
+            host=$(echo "${DOCKER_HOST}" | sed -E 's#ssh://([^@]+@)?([^:/]+).*#\2#')
+            if [ -n "${host}" ] && ! grep -qE "^${host}[ ,]" /home/coder/.ssh/known_hosts 2>/dev/null; then
+                ssh-keyscan -H "${host}" >> /home/coder/.ssh/known_hosts 2>/dev/null || true
+                chmod 644 /home/coder/.ssh/known_hosts
+                echo "Added ${host} to known_hosts."
+            fi
+        fi
+        if [ -f /home/coder/.ssh/id_private ]; then
+            eval "$(ssh-agent -s)"
+            ssh-add -D >/dev/null 2>&1 || true
+            ssh-add /home/coder/.ssh/id_private
+            echo "********* id_private key added to SSH agent *********"
+        fi
         echo "********* SSH Key Injected Successfully *********"
-        cat /home/coder/.ssh/public_key
+        cat /home/coder/.ssh/id_public
         echo "*************************************************"
         return
     fi
@@ -109,7 +123,7 @@ setup_chezmoi() {
         echo "*** Setting up Chezmoi with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
         sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /home/coder/.local/bin
         echo "*** Chezmoi Successfully Installed."
-        chezmoi init --verbose --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO" | grep -E 'error|warning'
+        chezmoi init --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
         echo "*** Chezmoi initialized with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
     fi
 }
