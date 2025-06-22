@@ -122,12 +122,25 @@ setup_chezmoi() {
     if [ -n "${CHEZMOI_REPO}" ]; then
         echo "*** Setting up Chezmoi with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
         if ! command -v chezmoi >/dev/null 2>&1; then
-            sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /home/coder/.local/bin
             echo "*** Chezmoi Successfully Installed."
         else
             echo "*** Chezmoi already installed. Skipping installation."
         fi
-        chezmoi init --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
+        if [ -d "$HOME/.local/share/chezmoi" ]; then
+            cd "$HOME/.local/share/chezmoi"
+            git remote update >/dev/null 2>&1
+            LOCAL=$(git rev-parse @)
+            REMOTE=$(git rev-parse @{u})
+            if [ "$LOCAL" != "$REMOTE" ]; then
+                echo "*** Remote changes detected, running chezmoi update."
+                chezmoi update --force --no-tty
+            else
+                echo "*** No remote changes detected, skipping chezmoi update."
+            fi
+            cd - >/dev/null
+        else
+            chezmoi init --no-tty --branch "$CHEZMOI_BRANCH" --apply "$CHEZMOI_REPO"
+        fi
         echo "*** Chezmoi initialized with repository ${CHEZMOI_REPO} on branch ${CHEZMOI_BRANCH}."
     fi
 }
