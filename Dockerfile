@@ -24,7 +24,6 @@ RUN apt-get update -qq \
     gnupg \
     hostname \
     iproute2 \
-    iproute2 \
     iptables \
     iputils-ping \
     libatm1 \
