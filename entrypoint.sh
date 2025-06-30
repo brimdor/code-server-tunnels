@@ -144,11 +144,21 @@ setup_chezmoi() {
 
 send_discord_webhook() {
     local message="$1"
+    echo "[INFO] Attempting to send Discord webhook with message:"
+    echo "$message"
     if [ -n "${DISCORD_WEBHOOK_URL}" ]; then
-        curl -s -H "Content-Type: application/json" \
-             -X POST \
-             -d "{\"content\": \"${message}\"}" \
-             "${DISCORD_WEBHOOK_URL}" >/dev/null
+        local response
+        response=$(curl -s -w "%{http_code}" -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"content\": \"${message}\"}" \
+            "${DISCORD_WEBHOOK_URL}" -o /dev/null)
+        if [ "$response" = "204" ]; then
+            echo "[INFO] Discord webhook sent successfully."
+        else
+            echo "[ERROR] Discord webhook failed with HTTP status: $response"
+        fi
+    else
+        echo "[WARN] DISCORD_WEBHOOK_URL is not set. Skipping Discord notification."
     fi
 }
 
@@ -161,41 +171,42 @@ start_tunnel() {
         local OLD_TUNNEL_NAME
         OLD_TUNNEL_NAME=$(cat /home/coder/check)
         if [ "${OLD_TUNNEL_NAME}" != "${TUNNEL_NAME}" ]; then
+            echo "[INFO] Tunnel name changed. Removing old tunnel configuration."
             rm -f /home/coder/.vscode/cli/token.json /home/coder/.vscode/cli/code_tunnel.json
-            echo "Removed old tunnel configuration."
         fi
     fi
 
     if [ ! -f /home/coder/.vscode/cli/token.json ] || [ ! -f /home/coder/.vscode/cli/code_tunnel.json ]; then
-        # New tunnel or not authenticated: run login command and capture output
+        echo "[INFO] No existing tunnel credentials found. Creating or authenticating tunnel..."
         local output
         output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
+        echo "[DEBUG] code tunnel output:"
+        echo "$output"
         touch /home/coder/check && echo "${TUNNEL_NAME}" > /home/coder/check
 
-        # Parse for Microsoft login
         if echo "$output" | grep -q "microsoft.com/devicelogin"; then
             local code url
             code=$(echo "$output" | grep -oE 'enter the code [A-Z0-9]+' | awk '{print $4}')
             url=$(echo "$output" | grep -oE 'https://microsoft.com/devicelogin')
             send_discord_webhook "VSCode Tunnel: Please login at ${url} with code \`${code}\`"
         fi
-        # Parse for GitHub login
         if echo "$output" | grep -q "github.com/login/device"; then
             local code url
             code=$(echo "$output" | grep -oE 'use code [A-Z0-9\-]+' | awk '{print $3}')
             url=$(echo "$output" | grep -oE 'https://github.com/login/device')
             send_discord_webhook "VSCode Tunnel: Please login at ${url} with code \`${code}\`"
         fi
-        # Parse for tunnel adoption link (if present)
         if echo "$output" | grep -q "https://vscode.dev/tunnel/"; then
             local link
             link=$(echo "$output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
             send_discord_webhook "VSCode Tunnel is ready: ${link}"
         fi
     else
-        # Tunnel already exists and matches: run adoption and capture output
+        echo "[INFO] Existing tunnel credentials found. Adopting tunnel..."
         local output
         output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
+        echo "[DEBUG] code tunnel output:"
+        echo "$output"
         if echo "$output" | grep -q "https://vscode.dev/tunnel/"; then
             local link
             link=$(echo "$output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
