@@ -168,50 +168,41 @@ start_tunnel() {
     export PATH="/home/coder/.local/bin:${PATH}"
 
     if [ -f /home/coder/check ]; then
-        local OLD_TUNNEL_NAME
-        OLD_TUNNEL_NAME=$(cat /home/coder/check)
+        local OLD_TUNNEL_NAME=$(cat /home/coder/check)
         if [ "${OLD_TUNNEL_NAME}" != "${TUNNEL_NAME}" ]; then
-            echo "[INFO] Tunnel name changed. Removing old tunnel configuration."
             rm -f /home/coder/.vscode/cli/token.json /home/coder/.vscode/cli/code_tunnel.json
+            echo "Removed old tunnel configuration."
         fi
     fi
 
     if [ ! -f /home/coder/.vscode/cli/token.json ] || [ ! -f /home/coder/.vscode/cli/code_tunnel.json ]; then
-        echo "[INFO] No existing tunnel credentials found. Creating or authenticating tunnel..."
-        local output
-        output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
-        echo "[DEBUG] code tunnel output:"
-        echo "$output"
-        touch /home/coder/check && echo "${TUNNEL_NAME}" > /home/coder/check
-
-        if echo "$output" | grep -q "microsoft.com/devicelogin"; then
+        local login_output
+        login_output=$(/home/coder/.local/bin/code tunnel user login --provider "${PROVIDER}" 2>&1)
+        echo "$login_output"
+        if echo "$login_output" | grep -q "microsoft.com/devicelogin"; then
             local code url
-            code=$(echo "$output" | grep -oE 'enter the code [A-Z0-9]+' | awk '{print $4}')
-            url=$(echo "$output" | grep -oE 'https://microsoft.com/devicelogin')
+            code=$(echo "$login_output" | grep -oE 'enter the code [A-Z0-9]+' | awk '{print $4}')
+            url=$(echo "$login_output" | grep -oE 'https://microsoft.com/devicelogin')
             send_discord_webhook "VSCode Tunnel: Please login at ${url} with code \`${code}\`"
         fi
-        if echo "$output" | grep -q "github.com/login/device"; then
+        if echo "$login_output" | grep -q "github.com/login/device"; then
             local code url
-            code=$(echo "$output" | grep -oE 'use code [A-Z0-9\-]+' | awk '{print $3}')
-            url=$(echo "$output" | grep -oE 'https://github.com/login/device')
+            code=$(echo "$login_output" | grep -oE 'use code [A-Z0-9\-]+' | awk '{print $3}')
+            url=$(echo "$login_output" | grep -oE 'https://github.com/login/device')
             send_discord_webhook "VSCode Tunnel: Please login at ${url} with code \`${code}\`"
         fi
-        if echo "$output" | grep -q "https://vscode.dev/tunnel/"; then
-            local link
-            link=$(echo "$output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
-            send_discord_webhook "VSCode Tunnel is ready: ${link}"
-        fi
+        touch /home/coder/check && echo ${TUNNEL_NAME} > /home/coder/check
     else
-        echo "[INFO] Existing tunnel credentials found. Adopting tunnel..."
-        local output
-        output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
-        echo "[DEBUG] code tunnel output:"
-        echo "$output"
-        if echo "$output" | grep -q "https://vscode.dev/tunnel/"; then
-            local link
-            link=$(echo "$output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
-            send_discord_webhook "VSCode Tunnel is ready: ${link}"
-        fi
+        echo "Tunnel already exists."
+    fi
+
+    local tunnel_output
+    tunnel_output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
+    echo "$tunnel_output"
+    if echo "$tunnel_output" | grep -q "https://vscode.dev/tunnel/"; then
+        local link
+        link=$(echo "$tunnel_output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
+        send_discord_webhook "VSCode Tunnel is ready: ${link}"
     fi
 }
 
