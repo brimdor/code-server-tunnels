@@ -196,21 +196,20 @@ start_tunnel() {
         touch /home/coder/check && echo "${TUNNEL_NAME}" > /home/coder/check
     else
         echo "Tunnel already exists."
-    fi
-
-    echo "[INFO] Starting VSCode tunnel..."
-    local tunnel_output
-    tunnel_output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
-    echo "$tunnel_output"
-    if echo "$tunnel_output" | grep -q "https://vscode.dev/tunnel/"; then
-        local link
-        link=$(echo "$tunnel_output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
-        local msg="VSCode Tunnel is ready: ${link}"
-        echo "[INFO] $msg"
-        send_discord_webhook "$msg"
-    elif echo "$tunnel_output" | grep -qi "error"; then
-        echo "[ERROR] Tunnel failed to start."
-        send_discord_webhook "VSCode Tunnel: Failed to start. Output: \`\`\`${tunnel_output}\`\`\`"
+        echo "[INFO] Starting VSCode tunnel..."
+        local tunnel_output
+        tunnel_output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
+        echo "$tunnel_output"
+        if echo "$tunnel_output" | grep -q "https://vscode.dev/tunnel/"; then
+            local link
+            link=$(echo "$tunnel_output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
+            local msg="VSCode Tunnel is ready: ${link}"
+            echo "[INFO] $msg"
+            send_discord_webhook "$msg"
+        elif echo "$tunnel_output" | grep -qi "error"; then
+            echo "[ERROR] Tunnel failed to start."
+            send_discord_webhook "VSCode Tunnel: Failed to start. Output: \`\`\`${tunnel_output}\`\`\`"
+        fi
     fi
 }
 
