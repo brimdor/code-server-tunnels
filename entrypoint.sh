@@ -88,7 +88,6 @@ setup_ssh() {
                 echo "Added ${host} to known_hosts."
             fi
         fi
-        # Always start ssh-agent and add the key on every boot if SSH_PRIVATE and SSH_PUBLIC are set
         eval "$(ssh-agent -s)"
         ssh-add -D >/dev/null 2>&1 || true
         ssh-add /home/coder/.ssh/id_private
@@ -142,13 +141,34 @@ setup_chezmoi() {
     fi
 }
 
+send_discord_webhook() {
+    local message="$1"
+    echo "[INFO] Attempting to send Discord webhook with message:"
+    echo "$message"
+    if [ -n "${DISCORD_WEBHOOK_URL}" ]; then
+        local response
+        response=$(curl -s -w "%{http_code}" -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"content\": \"${message}\"}" \
+            "${DISCORD_WEBHOOK_URL}" -o /dev/null)
+        if [ "$response" = "204" ]; then
+            echo "[INFO] Discord webhook sent successfully."
+        else
+            echo "[ERROR] Discord webhook failed with HTTP status: $response"
+        fi
+    else
+        echo "[WARN] DISCORD_WEBHOOK_URL is not set. Skipping Discord notification."
+    fi
+}
+
 start_tunnel() {
     local TUNNEL_NAME="${TUNNEL_NAME:-vscode-tunnel}"
     local PROVIDER="${PROVIDER:-github}"
     export PATH="/home/coder/.local/bin:${PATH}"
 
     if [ -f /home/coder/check ]; then
-        local OLD_TUNNEL_NAME=$(cat /home/coder/check)
+        local OLD_TUNNEL_NAME
+        OLD_TUNNEL_NAME=$(cat /home/coder/check)
         if [ "${OLD_TUNNEL_NAME}" != "${TUNNEL_NAME}" ]; then
             rm -f /home/coder/.vscode/cli/token.json /home/coder/.vscode/cli/code_tunnel.json
             echo "Removed old tunnel configuration."
@@ -156,13 +176,42 @@ start_tunnel() {
     fi
 
     if [ ! -f /home/coder/.vscode/cli/token.json ] || [ ! -f /home/coder/.vscode/cli/code_tunnel.json ]; then
-        /home/coder/.local/bin/code tunnel user login --provider "${PROVIDER}"
-        touch /home/coder/check && echo ${TUNNEL_NAME} > /home/coder/check
+        echo "[INFO] No existing tunnel credentials found. Starting login..."
+        /home/coder/.local/bin/code tunnel user login --provider "${PROVIDER}" 2>&1 | while IFS= read -r line; do
+            echo "$line"
+            if echo "$line" | grep -q "microsoft.com/devicelogin"; then
+                code=$(echo "$line" | grep -oE 'enter the code [A-Z0-9]+' | awk '{print $4}')
+                url=$(echo "$line" | grep -oE 'https://microsoft.com/devicelogin')
+                msg="VSCode Tunnel: Please login at ${url} with code \`${code}\`"
+                echo "[INFO] $msg"
+                send_discord_webhook "$msg"
+            elif echo "$line" | grep -q "github.com/login/device"; then
+                code=$(echo "$line" | grep -oE 'use code [A-Z0-9\-]+' | awk '{print $3}')
+                url=$(echo "$line" | grep -oE 'https://github.com/login/device')
+                msg="VSCode Tunnel: Please login at ${url} with code \`${code}\`"
+                echo "[INFO] $msg"
+                send_discord_webhook "$msg"
+            fi
+        done
+        touch /home/coder/check && echo "${TUNNEL_NAME}" > /home/coder/check
     else
         echo "Tunnel already exists."
     fi
 
-    /home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}"
+    echo "[INFO] Starting VSCode tunnel..."
+    local tunnel_output
+    tunnel_output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
+    echo "$tunnel_output"
+    if echo "$tunnel_output" | grep -q "https://vscode.dev/tunnel/"; then
+        local link
+        link=$(echo "$tunnel_output" | grep -oE 'https://vscode.dev/tunnel/[^ ]+')
+        local msg="VSCode Tunnel is ready: ${link}"
+        echo "[INFO] $msg"
+        send_discord_webhook "$msg"
+    elif echo "$tunnel_output" | grep -qi "error"; then
+        echo "[ERROR] Tunnel failed to start."
+        send_discord_webhook "VSCode Tunnel: Failed to start. Output: \`\`\`${tunnel_output}\`\`\`"
+    fi
 }
 
 setup_zshrc
