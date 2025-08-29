@@ -58,6 +58,8 @@ RUN apt-get update -qq \
     needrestart \
     netcat-openbsd \
     nftables \
+    nodejs \
+    npm \
     openssh-client \
     procps \
     python3 \
