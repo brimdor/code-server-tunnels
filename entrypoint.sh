@@ -177,7 +177,7 @@ start_tunnel() {
 
     if [ ! -f /home/coder/.vscode/cli/token.json ] || [ ! -f /home/coder/.vscode/cli/code_tunnel.json ]; then
         echo "[INFO] No existing tunnel credentials found. Starting login..."
-        /home/coder/.local/bin/code tunnel user login --provider "${PROVIDER}" 2>&1 | while IFS= read -r line; do
+        /home/coder/.local/bin/code tunnel --log trace --verbose user login --provider "${PROVIDER}" 2>&1 | while IFS= read -r line; do
             echo "$line"
             if echo "$line" | grep -q "microsoft.com/devicelogin"; then
                 code=$(echo "$line" | grep -oE 'enter the code [A-Z0-9]+' | awk '{print $4}')
@@ -198,7 +198,7 @@ start_tunnel() {
         echo "Tunnel already exists."
         echo "[INFO] Starting VSCode tunnel..."
         local tunnel_output
-        tunnel_output=$(/home/coder/.local/bin/code tunnel --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
+        tunnel_output=$(/home/coder/.local/bin/code tunnel --log trace --verbose --accept-server-license-terms --name "${TUNNEL_NAME}" 2>&1)
         echo "$tunnel_output"
         if echo "$tunnel_output" | grep -q "https://vscode.dev/tunnel/"; then
             local link
